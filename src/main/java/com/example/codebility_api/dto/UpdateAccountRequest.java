@@ -18,6 +18,8 @@ public record UpdateAccountRequest(
         @Size(max = 50)
         String lastName,
 
+        @NotBlank(message = "Gender is required")
+        @Size(max = 50)
         String gender,
 
         String phone,

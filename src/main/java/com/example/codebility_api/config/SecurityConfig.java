@@ -9,6 +9,9 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import com.example.codebility_api.security.JwtAuthenticationFilter;
+import com.example.codebility_api.security.RestAccessDeniedHandler;
+import com.example.codebility_api.security.RestAuthenticationEntryPoint;
+import jakarta.servlet.DispatcherType;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import org.springframework.web.cors.CorsConfiguration;
@@ -28,7 +31,9 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            RestAuthenticationEntryPoint authenticationEntryPoint,
+            RestAccessDeniedHandler accessDeniedHandler) throws Exception {
 
         http
                 .cors(cors -> {})
@@ -40,7 +45,13 @@ public class SecurityConfig {
                                 SessionCreationPolicy.STATELESS
                         )
                 )
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler)
+                )
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ERROR)
+                        .permitAll()
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/accounts/register",

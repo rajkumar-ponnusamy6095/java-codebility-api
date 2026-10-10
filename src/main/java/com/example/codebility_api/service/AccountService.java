@@ -38,7 +38,6 @@ import com.example.codebility_api.dto.AccountPaginationResponse;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import java.util.List;
 import com.example.codebility_api.dto.AccountProfileResponse;
 
 import org.bson.types.ObjectId;
@@ -202,15 +201,7 @@ public class AccountService {
                 accessToken,
                 "Bearer",
                 900,
-                new LoginResponse.AccountDetails(
-                        account.getId(),
-                        account.getEmail(),
-                        account.getFirstName(),
-                        account.getLastName(),
-                        account.getRole(),
-                        account.getStatus(),
-                        account.isVerified()
-                )
+                toAccountDetails(account)
         );
 
         return new AuthenticationResult(response, refreshToken);
@@ -258,15 +249,7 @@ public class AccountService {
                 accessToken,
                 "Bearer",
                 900,
-                new LoginResponse.AccountDetails(
-                        account.getId(),
-                        account.getEmail(),
-                        account.getFirstName(),
-                        account.getLastName(),
-                        account.getRole(),
-                        account.getStatus(),
-                        account.isVerified()
-                )
+                toAccountDetails(account)
         );
 
         return new AuthenticationResult(response, newRefreshToken);
@@ -401,16 +384,18 @@ public class AccountService {
 
         String tokenHash = hashResetToken(rawToken);
 
-        return accountRepository.findAll().stream()
-                .filter(account -> account.getResetToken() != null)
-                .filter(account -> tokenHash.equals(
-                        account.getResetToken().getToken()))
-                .anyMatch(account ->
-                        account.getResetToken().getExpires() != null
-                                && account.getResetToken().getExpires()
-                                .isAfter(java.time.Instant.now()));
+        return accountRepository.findByResetTokenToken(tokenHash)
+                .filter(this::hasUnexpiredResetToken)
+                .isPresent();
     }
 
+
+    private boolean hasUnexpiredResetToken(Account account) {
+        Account.ResetToken resetToken = account.getResetToken();
+        return resetToken != null
+                && resetToken.getExpires() != null
+                && resetToken.getExpires().isAfter(java.time.Instant.now());
+    }
 
     public void resetPassword(ResetPasswordRequest request) {
         String rawToken = request.token();
@@ -424,15 +409,8 @@ public class AccountService {
 
         String tokenHash = hashResetToken(rawToken);
 
-        Account account = accountRepository.findAll().stream()
-                .filter(item -> item.getResetToken() != null)
-                .filter(item -> tokenHash.equals(
-                        item.getResetToken().getToken()))
-                .filter(item ->
-                        item.getResetToken().getExpires() != null
-                                && item.getResetToken().getExpires()
-                                .isAfter(java.time.Instant.now()))
-                .findFirst()
+        Account account = accountRepository.findByResetTokenToken(tokenHash)
+                .filter(this::hasUnexpiredResetToken)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
                         "Invalid or expired reset token"
@@ -453,16 +431,7 @@ public class AccountService {
     public AccountListResponse getAllAccounts() {
         List<LoginResponse.AccountDetails> accounts =
                 accountRepository.findAll().stream()
-                        .map(account ->
-                                new LoginResponse.AccountDetails(
-                                        account.getId(),
-                                        account.getEmail(),
-                                        account.getFirstName(),
-                                        account.getLastName(),
-                                        account.getRole(),
-                                        account.getStatus(),
-                                        account.isVerified()
-                                ))
+                        .map(this::toAccountDetails)
                         .toList();
 
         return new AccountListResponse(accounts, accounts.size());
@@ -492,7 +461,7 @@ public class AccountService {
         );
         account.setFirstName(request.firstName().trim());
         account.setLastName(request.lastName().trim());
-        account.setGender(request.gender());
+        account.setGender(trimNullable(request.gender()));
         account.setPhone(request.phone());
         account.setDepartment(request.department());
         account.setRole(request.role());
@@ -512,15 +481,7 @@ public class AccountService {
 
         Account saved = accountRepository.save(account);
 
-        return new LoginResponse.AccountDetails(
-                saved.getId(),
-                saved.getEmail(),
-                saved.getFirstName(),
-                saved.getLastName(),
-                saved.getRole(),
-                saved.getStatus(),
-                saved.isVerified()
-        );
+        return toAccountDetails(saved);
     }
 
 
@@ -531,15 +492,7 @@ public class AccountService {
                         "Account not found"
                 ));
 
-        return new LoginResponse.AccountDetails(
-                account.getId(),
-                account.getEmail(),
-                account.getFirstName(),
-                account.getLastName(),
-                account.getRole(),
-                account.getStatus(),
-                account.isVerified()
-        );
+        return toAccountDetails(account);
     }
 
     public LoginResponse.AccountDetails updateAccount(
@@ -566,7 +519,7 @@ public class AccountService {
         account.setEmail(email);
         account.setFirstName(request.firstName().trim());
         account.setLastName(request.lastName().trim());
-        account.setGender(request.gender());
+        account.setGender(trimNullable(request.gender()));
         account.setPhone(request.phone());
         account.setDepartment(request.department());
         account.setRole(request.role());
@@ -575,15 +528,7 @@ public class AccountService {
 
         Account updatedAccount = accountRepository.save(account);
 
-        return new LoginResponse.AccountDetails(
-                updatedAccount.getId(),
-                updatedAccount.getEmail(),
-                updatedAccount.getFirstName(),
-                updatedAccount.getLastName(),
-                updatedAccount.getRole(),
-                updatedAccount.getStatus(),
-                updatedAccount.isVerified()
-        );
+        return toAccountDetails(updatedAccount);
     }
 
     public void deleteAccount(String id) {
@@ -604,6 +549,7 @@ public class AccountService {
                 account.getEmail(),
                 account.getFirstName(),
                 account.getLastName(),
+                account.getGender(),
                 account.getRole(),
                 account.getStatus(),
                 account.isVerified()
@@ -802,6 +748,10 @@ public class AccountService {
                         nextCursor
                 )
         );
+    }
+
+    private static String trimNullable(String value) {
+        return value == null ? null : value.trim();
     }
 
     private AccountProfileResponse toAccountProfile(Account account) {

@@ -19,6 +19,8 @@ public interface AccountRepository extends MongoRepository<Account, String> {
 
     Optional<Account> findByVerificationToken(String verificationToken);
 
+    Optional<Account> findByResetTokenToken(String token);
+
     @Query("{}")
     List<Account> findAllAccounts(Pageable pageable);
 
