@@ -27,3 +27,6 @@ out/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# IDE build output
+bin/
